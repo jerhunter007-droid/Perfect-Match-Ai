@@ -30,6 +30,8 @@ function MatchesInner() {
   const [error, setError] = useState("");
   const [resetAt, setResetAt] = useState<string | null>(null);
   const [reportOpen, setReportOpen] = useState(false);
+  const [isPremium, setIsPremium] = useState(false);
+  const [lastDeclined, setLastDeclined] = useState<Card | null>(null);
 
   useEffect(() => {
     (async () => {
@@ -40,6 +42,9 @@ function MatchesInner() {
       if (myProfile?.onboarding_status === "pending_verification") { router.push("/verify-identity"); return; }
       if (myProfile?.onboarding_status === "pending_age_verification") { router.push("/verify-age"); return; }
       if (myProfile?.onboarding_status !== "active") { router.push("/onboarding"); return; }
+
+      const { data: sub } = await supabase.from("subscriptions").select("status").eq("profile_id", session.user.id).maybeSingle();
+      setIsPremium(sub?.status === "active");
 
       let rawCards: Card[] = [];
       let stackResetAt: string | null = null;
@@ -93,12 +98,30 @@ function MatchesInner() {
     setRevealed(false);
     const { data } = await supabase.rpc("decide_card", { p_card_id: card.id, p_decision: decision });
     track(decision === "accepted" ? "swipe_accept" : "swipe_decline", { candidate_id: card.candidate_profile_id });
+    if (decision === "declined") setLastDeclined(card);
     if (data?.mutual) {
       setMutualName(card.candidate?.name ?? "them");
       track("match_formed", { candidate_id: card.candidate_profile_id });
     } else {
       setIndex((i) => i + 1);
     }
+  }
+
+  async function redo() {
+    if (!lastDeclined) return;
+    const { data } = await supabase.rpc("undo_last_decline", { p_card_id: lastDeclined.id });
+    if (!data?.ok) {
+      setLastDeclined(null);
+      return;
+    }
+    track("swipe_redo", { candidate_id: lastDeclined.candidate_profile_id });
+    setCards((prev) => {
+      const withoutOld = prev.filter((c) => c.id !== lastDeclined.id);
+      const restored = { ...lastDeclined, decision: "pending" };
+      const insertAt = Math.min(index, withoutOld.length);
+      return [...withoutOld.slice(0, insertAt), restored, ...withoutOld.slice(insertAt)];
+    });
+    setLastDeclined(null);
   }
 
   function closeMutual() {
@@ -186,6 +209,15 @@ function MatchesInner() {
         )}
       </div>
       <div className="flex justify-center items-center gap-6 mt-4">
+        {isPremium && (
+          <button
+            onClick={redo}
+            disabled={!lastDeclined}
+            className="w-12 h-12 rounded-full border border-line bg-surface flex items-center justify-center text-cyan text-lg disabled:opacity-30"
+          >
+            ↺
+          </button>
+        )}
         <button onClick={() => decide("declined")} className="w-16 h-16 rounded-full border border-line bg-surface flex items-center justify-center text-red text-2xl">✕</button>
         <button onClick={() => decide("accepted")} className="w-16 h-16 rounded-full bg-cyan flex items-center justify-center text-void text-2xl">♥</button>
       </div>
