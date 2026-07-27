@@ -5,6 +5,16 @@ import Link from "next/link";
 import { supabase } from "@/lib/supabase";
 import { track } from "@/lib/analytics";
 import { PAYMENTS_ENABLED } from "@/lib/config";
+import { COUNTRIES } from "@/lib/countries";
+
+type Scope = "country" | "state" | "city" | "region";
+
+const SCOPE_LABELS: Record<Scope, string> = {
+  country: "Country",
+  state: "State / Province",
+  city: "City",
+  region: "Region",
+};
 
 export default function FiltersPage() {
   const router = useRouter();
@@ -13,66 +23,48 @@ export default function FiltersPage() {
   const [maxDistance, setMaxDistance] = useState(25);
   const [seeking, setSeeking] = useState<"men" | "women" | "everyone">("everyone");
   const [isPremium, setIsPremium] = useState(false);
-  const [locations, setLocations] = useState<{ id: string; city: string }[]>([]);
-  const [newLocation, setNewLocation] = useState("");
-  const [locationError, setLocationError] = useState("");
+  const [gatesEnabled, setGatesEnabled] = useState(false);
+  const [everywhereEnabled, setEverywhereEnabled] = useState(false);
+  const [everywhereScope, setEverywhereScope] = useState<Scope>("city");
+  const [everywhereValue, setEverywhereValue] = useState("");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
-  async function loadLocations(userId: string) {
-    const { data } = await supabase.from("search_locations").select("id, city").eq("profile_id", userId);
-    setLocations(data ?? []);
-  }
+  const everywhereAllowed = !gatesEnabled || isPremium;
 
   useEffect(() => {
     (async () => {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) { router.push("/login"); return; }
+
       const { data } = await supabase.from("search_filters").select("*").eq("profile_id", session.user.id).maybeSingle();
       if (data) {
         setAgeMin(data.age_min); setAgeMax(data.age_max); setMaxDistance(data.max_distance); setSeeking(data.seeking);
+        setEverywhereEnabled(data.everywhere_enabled ?? false);
+        setEverywhereScope((data.everywhere_scope as Scope) ?? "city");
+        setEverywhereValue(data.everywhere_value ?? "");
       }
       const { data: sub } = await supabase.from("subscriptions").select("status").eq("profile_id", session.user.id).maybeSingle();
       setIsPremium(sub?.status === "active");
-      await loadLocations(session.user.id);
+      const { data: gateSetting } = await supabase.from("app_settings").select("value").eq("key", "premium_gates_enabled").maybeSingle();
+      setGatesEnabled(gateSetting?.value ?? false);
       setLoading(false);
     })();
   }, [router]);
-
-  async function addLocation() {
-    if (!newLocation.trim()) return;
-    const maxLocations = isPremium ? 3 : 1;
-    if (locations.length >= maxLocations) {
-      setLocationError(isPremium ? "You've used all 3 locations." : (PAYMENTS_ENABLED ? "Upgrade to Perfect Match+ to search up to 3 locations worldwide." : "Perfect Match+ is coming soon and will let you search up to 3 locations worldwide."));
-      return;
-    }
-    setLocationError("");
-    const { data: { session } } = await supabase.auth.getSession();
-    if (!session) return;
-    const { data, error } = await supabase.from("search_locations").insert({ profile_id: session.user.id, city: newLocation.trim() }).select("id, city").single();
-    if (error) { setLocationError(error.message); return; }
-    setLocations((prev) => [...prev, data]);
-    setNewLocation("");
-    track("location_added");
-  }
-
-  async function removeLocation(id: string) {
-    // never allow removing down to zero — matching needs at least one city
-    if (locations.length <= 1) { setLocationError("You need at least one search location."); return; }
-    await supabase.from("search_locations").delete().eq("id", id);
-    setLocations((prev) => prev.filter((l) => l.id !== id));
-    track("location_removed");
-  }
 
   async function save() {
     setSaving(true);
     const { data: { session } } = await supabase.auth.getSession();
     if (!session) return;
     await supabase.from("search_filters").upsert({
-      profile_id: session.user.id, age_min: ageMin, age_max: ageMax, max_distance: maxDistance, seeking,
+      profile_id: session.user.id,
+      age_min: ageMin, age_max: ageMax, max_distance: maxDistance, seeking,
+      everywhere_enabled: everywhereAllowed && everywhereEnabled,
+      everywhere_scope: everywhereScope,
+      everywhere_value: everywhereValue.trim() || null,
     });
     setSaving(false);
-    track("filters_updated", { age_min: ageMin, age_max: ageMax, max_distance: maxDistance, seeking });
+    track("filters_updated", { age_min: ageMin, age_max: ageMax, max_distance: maxDistance, seeking, everywhere_enabled: everywhereAllowed && everywhereEnabled });
     router.push("/matches?refresh=1");
   }
 
@@ -86,36 +78,71 @@ export default function FiltersPage() {
 
       <div className="mb-6">
         <div className="flex items-center justify-between mb-2">
-          <label className="text-xs text-muted">Search locations</label>
-          <span className="text-xs font-mono text-muted">{locations.length}/{isPremium ? 3 : 1}</span>
+          <label className="text-xs text-muted">Everywhere Mode</label>
+          {everywhereAllowed ? (
+            <button
+              onClick={() => setEverywhereEnabled((v) => !v)}
+              className={`text-xs font-mono rounded-full px-3 py-1 border ${everywhereEnabled ? "bg-cyan text-void border-cyan" : "bg-surface text-muted border-line"}`}
+            >
+              {everywhereEnabled ? "ON" : "OFF"}
+            </button>
+          ) : (
+            <span className="text-xs font-mono rounded-full px-3 py-1 border border-line text-muted">LOCKED</span>
+          )}
         </div>
-        <div className="space-y-2 mb-2">
-          {locations.map((l) => (
-            <div key={l.id} className="flex items-center justify-between bg-surface border border-line rounded-lg px-3 py-2.5">
-              <span className="text-sm">{l.city}</span>
-              <button onClick={() => removeLocation(l.id)} className="text-muted text-lg w-8 h-8 flex items-center justify-center">×</button>
-            </div>
-          ))}
-        </div>
-        {(isPremium ? locations.length < 3 : locations.length < 1) && (
-          <div className="flex gap-2">
-            <input value={newLocation} onChange={(e) => setNewLocation(e.target.value)} placeholder="City, State/Country" className="flex-1 rounded-md px-3 py-3 text-base bg-surface border border-line text-bone outline-none min-h-[44px]" />
-            <button onClick={addLocation} className="rounded-full px-4 bg-raised border border-line text-bone text-xs font-semibold min-h-[44px]">Add</button>
-          </div>
-        )}
-        {!isPremium && locations.length >= 1 && (
-          <p className="text-[11px] text-muted mt-2">
+
+        {!everywhereAllowed && (
+          <p className="text-[11px] text-muted mb-2">
             {PAYMENTS_ENABLED ? (
-              <><Link href="/upgrade" className="text-cyan underline">Upgrade to Perfect Match+</Link> to search up to 3 locations worldwide.</>
+              <><Link href="/upgrade" className="text-cyan underline">Upgrade to Perfect Match+</Link> to search anywhere in the world.</>
             ) : (
-              "Perfect Match+ is coming soon and will let you search up to 3 locations worldwide."
+              "Perfect Match+ is coming soon and will let you search anywhere in the world."
             )}
           </p>
         )}
-        {isPremium && (
-          <p className="text-[11px] text-muted mt-2">Add cities anywhere in the world — great for matching with people abroad.</p>
+
+        {everywhereAllowed && everywhereEnabled && (
+          <div className="mt-3">
+            <div className="flex gap-2 mb-2">
+              {(Object.keys(SCOPE_LABELS) as Scope[]).map((s) => (
+                <button
+                  key={s}
+                  onClick={() => setEverywhereScope(s)}
+                  className={`flex-1 rounded-full py-2 text-[11px] font-semibold border ${everywhereScope === s ? "bg-cyan text-void border-cyan" : "bg-surface text-bone border-line"}`}
+                >
+                  {SCOPE_LABELS[s]}
+                </button>
+              ))}
+            </div>
+
+            {everywhereScope === "country" ? (
+              <select
+                value={everywhereValue}
+                onChange={(e) => setEverywhereValue(e.target.value)}
+                className="w-full rounded-md px-3 py-3 text-base bg-surface border border-line text-bone outline-none min-h-[44px]"
+              >
+                <option value="">Select a country</option>
+                {COUNTRIES.map((c) => (
+                  <option key={c} value={c}>{c}</option>
+                ))}
+              </select>
+            ) : (
+              <input
+                value={everywhereValue}
+                onChange={(e) => setEverywhereValue(e.target.value)}
+                placeholder={everywhereScope === "state" ? "e.g. Illinois" : everywhereScope === "region" ? "e.g. Pacific Northwest" : "e.g. Las Vegas"}
+                className="w-full rounded-md px-3 py-3 text-base bg-surface border border-line text-bone outline-none min-h-[44px]"
+              />
+            )}
+            <p className="text-[11px] text-muted mt-2">
+              This replaces your usual nearby search with matches from this {SCOPE_LABELS[everywhereScope].toLowerCase()} only. Switch it off anytime to go back to your own city.
+            </p>
+          </div>
         )}
-        {locationError && <p className="text-red text-xs mt-2 font-mono">{locationError}</p>}
+
+        {everywhereAllowed && !everywhereEnabled && (
+          <p className="text-[11px] text-muted mt-2">Off — you're matched near your own city by default.</p>
+        )}
       </div>
 
       <div className="mb-6">
@@ -138,6 +165,7 @@ export default function FiltersPage() {
       <div className="mb-8">
         <label className="text-xs text-muted block mb-2">Max distance: {maxDistance} mi</label>
         <input type="range" min={1} max={100} value={maxDistance} onChange={(e) => setMaxDistance(Number(e.target.value))} className="w-full" />
+        {everywhereAllowed && everywhereEnabled && <p className="text-[11px] text-muted mt-2">Ignored while Everywhere Mode is on.</p>}
       </div>
 
       <button onClick={save} disabled={saving} className="w-full rounded-full py-4 font-semibold text-base bg-cyan text-void disabled:opacity-50 min-h-[44px]">

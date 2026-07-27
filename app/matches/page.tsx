@@ -31,7 +31,10 @@ function MatchesInner() {
   const [resetAt, setResetAt] = useState<string | null>(null);
   const [reportOpen, setReportOpen] = useState(false);
   const [isPremium, setIsPremium] = useState(false);
+  const [gatesEnabled, setGatesEnabled] = useState(false);
   const [lastDeclined, setLastDeclined] = useState<Card | null>(null);
+
+  const redoAllowed = !gatesEnabled || isPremium;
 
   useEffect(() => {
     (async () => {
@@ -45,6 +48,8 @@ function MatchesInner() {
 
       const { data: sub } = await supabase.from("subscriptions").select("status").eq("profile_id", session.user.id).maybeSingle();
       setIsPremium(sub?.status === "active");
+      const { data: gateSetting } = await supabase.from("app_settings").select("value").eq("key", "premium_gates_enabled").maybeSingle();
+      setGatesEnabled(gateSetting?.value ?? false);
 
       let rawCards: Card[] = [];
       let stackResetAt: string | null = null;
@@ -209,7 +214,7 @@ function MatchesInner() {
         )}
       </div>
       <div className="flex justify-center items-center gap-6 mt-4">
-        {isPremium && (
+        {redoAllowed && (
           <button
             onClick={redo}
             disabled={!lastDeclined}
