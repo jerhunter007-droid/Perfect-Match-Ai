@@ -11,8 +11,8 @@ const config: Config = {
         line: "#2B3162",
         bone: "#EDEDF5",
         muted: "#8C90BB",
-        cyan: "#FF2EC4",
-        cyanDim: "#8A1E72",
+        cyan: "#FF318F",
+        cyanDim: "#8B1E50",
         red: "#E5637A",
       },
       fontFamily: {
