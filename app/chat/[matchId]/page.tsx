@@ -4,6 +4,7 @@ import { useRouter, useParams } from "next/navigation";
 import Link from "next/link";
 import { supabase } from "@/lib/supabase";
 import { track } from "@/lib/analytics";
+import AiBreakdownPanel from "@/components/AiBreakdownPanel";
 
 type Message = { id: string; sender_id: string | null; body: string; created_at: string };
 type Profile = {
@@ -31,6 +32,8 @@ export default function ChatThreadPage() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [reportOpen, setReportOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
+  const [isPremium, setIsPremium] = useState(false);
+  const [gatesEnabled, setGatesEnabled] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -38,6 +41,11 @@ export default function ChatThreadPage() {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) { router.push("/login"); return; }
       setMyId(session.user.id);
+
+      const { data: sub } = await supabase.from("subscriptions").select("status").eq("profile_id", session.user.id).maybeSingle();
+      setIsPremium(sub?.status === "active");
+      const { data: gateSetting } = await supabase.from("app_settings").select("value").eq("key", "premium_gates_enabled").maybeSingle();
+      setGatesEnabled(gateSetting?.value ?? false);
 
       const { data: members } = await supabase.from("match_members").select("profile_id").eq("match_id", matchId);
       const others = (members ?? []).map((m) => m.profile_id).filter((id) => id !== session.user.id);
@@ -192,6 +200,11 @@ export default function ChatThreadPage() {
                 {profile.interests.map((i) => (
                   <span key={i} className="text-xs text-bone/80 bg-surface border border-line rounded-full px-3 py-1">{i}</span>
                 ))}
+              </div>
+            )}
+            {otherIds.length === 1 && (
+              <div className="w-full max-w-xs">
+                <AiBreakdownPanel vieweeId={otherIds[0]} isPremium={isPremium} gatesEnabled={gatesEnabled} />
               </div>
             )}
           </div>

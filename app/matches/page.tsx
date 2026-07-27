@@ -5,6 +5,7 @@ import Link from "next/link";
 import { supabase } from "@/lib/supabase";
 import { track } from "@/lib/analytics";
 import NavBar from "@/components/NavBar";
+import AiBreakdownPanel from "@/components/AiBreakdownPanel";
 
 type Card = {
   id: string;
@@ -210,6 +211,7 @@ function MatchesInner() {
               <p className="text-sm leading-relaxed">{card.explanation}</p>
             </div>
             <p className="text-sm leading-relaxed">{card.candidate?.bio}</p>
+            <AiBreakdownPanel vieweeId={card.candidate_profile_id} isPremium={isPremium} gatesEnabled={gatesEnabled} />
           </div>
         )}
       </div>
