@@ -6,6 +6,14 @@ import { supabase } from "@/lib/supabase";
 import { track } from "@/lib/analytics";
 
 type Message = { id: string; sender_id: string | null; body: string; created_at: string };
+type Profile = {
+  name: string;
+  age: number | null;
+  city: string | null;
+  bio: string;
+  interests: string[];
+  photo: string | null;
+};
 const REPORT_REASONS = ["Fake profile / bot", "Inappropriate photos", "Harassment or threats", "Underage", "Spam or scam", "Other"];
 
 export default function ChatThreadPage() {
@@ -16,11 +24,13 @@ export default function ChatThreadPage() {
   const [myId, setMyId] = useState<string | null>(null);
   const [title, setTitle] = useState("");
   const [otherIds, setOtherIds] = useState<string[]>([]);
+  const [profile, setProfile] = useState<Profile | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [draft, setDraft] = useState("");
   const [loading, setLoading] = useState(true);
   const [menuOpen, setMenuOpen] = useState(false);
   const [reportOpen, setReportOpen] = useState(false);
+  const [profileOpen, setProfileOpen] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -32,8 +42,20 @@ export default function ChatThreadPage() {
       const { data: members } = await supabase.from("match_members").select("profile_id").eq("match_id", matchId);
       const others = (members ?? []).map((m) => m.profile_id).filter((id) => id !== session.user.id);
       setOtherIds(others);
-      const { data: othersData } = await supabase.from("profiles").select("name").in("id", others);
+      const { data: othersData } = await supabase.from("profiles").select("id, name, age, city, bio, interests").in("id", others);
       setTitle((othersData ?? []).map((o) => o.name).join(" & ") || "Match");
+
+      if (others.length === 1 && othersData && othersData[0]) {
+        const { data: photos } = await supabase.from("profile_photos").select("url").eq("profile_id", others[0]).order("position", { ascending: true }).limit(1);
+        setProfile({
+          name: othersData[0].name,
+          age: othersData[0].age,
+          city: othersData[0].city,
+          bio: othersData[0].bio,
+          interests: othersData[0].interests ?? [],
+          photo: photos?.[0]?.url ?? null,
+        });
+      }
 
       const { data: msgs } = await supabase.from("messages").select("*").eq("match_id", matchId).order("created_at", { ascending: true });
       setMessages(msgs ?? []);
@@ -89,11 +111,25 @@ export default function ChatThreadPage() {
       <div className="flex items-center justify-between pb-4 border-b border-line mb-4">
         <div className="flex items-center gap-3">
           <Link href="/chat" className="text-muted text-lg w-9 h-9 flex items-center justify-center -ml-2">←</Link>
-          <p className="text-base">{title}</p>
+          {profile ? (
+            <button onClick={() => setProfileOpen(true)} className="flex items-center gap-2">
+              {profile.photo ? (
+                <img src={profile.photo} alt="" className="w-8 h-8 rounded-full object-cover" />
+              ) : (
+                <div className="w-8 h-8 rounded-full bg-raised" />
+              )}
+              <p className="text-base text-bone">{title}</p>
+            </button>
+          ) : (
+            <p className="text-base">{title}</p>
+          )}
         </div>
         <button onClick={() => setMenuOpen(true)} className="text-muted text-xl w-9 h-9 flex items-center justify-center">⋯</button>
       </div>
       <div className="flex-1 overflow-y-auto space-y-2 pb-4">
+        {messages.length === 0 && (
+          <p className="text-muted text-xs text-center mt-10">You matched with {title}. Say hi — either of you can send the first message.</p>
+        )}
         {messages.map((m) => (
           <div key={m.id} className={`max-w-[75%] rounded-2xl px-3 py-2 text-sm ${m.sender_id === myId ? "ml-auto bg-cyan text-void" : "bg-surface text-bone"}`}>
             {m.body}
@@ -133,6 +169,31 @@ export default function ChatThreadPage() {
               ))}
             </div>
             <button onClick={() => setReportOpen(false)} className="w-full rounded-full py-2.5 text-sm text-muted border border-line">Cancel</button>
+          </div>
+        </div>
+      )}
+
+      {profileOpen && profile && (
+        <div className="fixed inset-0 z-50 bg-void flex flex-col">
+          <div className="p-4">
+            <button onClick={() => setProfileOpen(false)} className="text-muted text-lg w-9 h-9 flex items-center justify-center -ml-2">✕</button>
+          </div>
+          <div className="flex-1 overflow-y-auto px-5 pb-8 flex flex-col items-center text-center gap-3">
+            {profile.photo ? (
+              <img src={profile.photo} alt="" className="w-28 h-28 rounded-full object-cover" />
+            ) : (
+              <div className="w-28 h-28 rounded-full bg-raised" />
+            )}
+            <p className="text-xl text-bone">{profile.name}{profile.age ? `, ${profile.age}` : ""}</p>
+            {profile.city && <p className="text-sm text-muted">{profile.city}</p>}
+            {profile.bio && <p className="text-sm text-bone/80 mt-2 max-w-xs">{profile.bio}</p>}
+            {profile.interests.length > 0 && (
+              <div className="flex flex-wrap gap-2 justify-center mt-2">
+                {profile.interests.map((i) => (
+                  <span key={i} className="text-xs text-bone/80 bg-surface border border-line rounded-full px-3 py-1">{i}</span>
+                ))}
+              </div>
+            )}
           </div>
         </div>
       )}
