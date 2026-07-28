@@ -191,3 +191,19 @@ Listed honestly rather than described as done. Each of these is a real, legitima
 ---
 
 *This document reflects the state of Perfect Match's security architecture as verified through direct testing, code audit, and adversarial review. It will be updated as each 🔜 section is genuinely built — not before.*
+
+---
+
+## 13. Logging / Monitoring / Admin Dashboard — Outstanding Items
+
+Most of this pass either resolved into fixes (AI-failure logging across all four Claude-calling functions, account-deletion success logging) or turned out to be restating items already in §9's original roadmap rather than surfacing anything new. Cross-referencing rather than duplicating those:
+
+- **Monitoring and alerting** — every item in the Monitoring section of this checklist (CPU, memory, response times, database performance, AI latency, traffic spikes) collapses into the single "Monitoring and alerting" line already in §9. Nothing here changes that scope, it just confirms none of it has an aggregation or alerting layer yet, even though the raw data increasingly exists after this session's logging work.
+- **Admin Dashboard** — the entire section is the same gap already named as "moderation workflow" in §9: the needs_manual_review/needs_age_review data exists and is now correctly protected, but there's no admin surface built to act on it. Not a new item, just the sharpest possible restatement of an existing one.
+
+### Genuinely new, not yet covered elsewhere
+- Whether Supabase Auth's own login/logout/password-reset logs are actually being retained and reviewed, versus just technically existing at the platform level — a dashboard question for you, not something I can confirm from here.
+- Client-side storage upload failures (as opposed to failures that flow through an edge function) aren't logged anywhere — folds into the existing photo-upload-component blocker in §11 as one more specific thing to check once that code is visible.
+
+### Minor, worth naming precisely rather than ignoring
+console.error(err) logs whatever the caught exception object contains. For the SDK errors seen throughout this app that's reliably just a message string, but this isn't a hard guarantee for every conceivable error shape. Low risk, not zero — noted for completeness rather than treated as an open action item.
