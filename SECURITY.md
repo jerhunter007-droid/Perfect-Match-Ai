@@ -225,3 +225,27 @@ A third distinct blocker, alongside the login/signup files (§10) and the photo 
 
 ### Pending real-world confirmation, not yet complete
 - **Content-Security-Policy is live in report-only mode**, not yet confirmed clean or switched to enforcing. Needs you to browse the live site with DevTools open, confirm zero violations, then have me flip `Content-Security-Policy-Report-Only` to `Content-Security-Policy` in `next.config.js`.
+
+---
+
+## Correction to §12
+
+§12 lists "AI-call failures aren't logged distinctly" as an open item. That was fixed in the same session, shortly after §12 was written — generate-stack, ai-breakdown, verify-photo, and verify-age all now log AI-specific failures explicitly, not just the generic error-catch. See §14 below.
+
+---
+
+## 14. Completed This Session
+
+A running list of what was found and fixed today, so this document has a real history and not just an open-items list. Every item below was tested (not just deployed) before being marked done.
+
+1. **Messages/match_members infinite recursion** — a self-referential RLS policy meant chat was completely broken at the database level for any real usage. Never triggered before this session because both tables were empty. Fixed and tested in both directions (member can read, non-member can't) plus insert-blocking for non-members.
+2. **Error message leakage** — all 7 edge functions were returning raw internal error text to clients. Now log the real error server-side and return a generic message to the client. Includes stripe-webhook's signature-failure path, which had the same issue.
+3. **duo_invites forgery** — the inviter could directly set accepted_by and status='accepted' themselves, forging a duo link with someone who never consented, then pull that person's private profile into a real Claude call without their knowledge. Fixed at the RLS policy level; the legitimate redeem_duo_invite RPC (which bypasses RLS by design) was structurally unaffected.
+4. **profile_photos.url arbitrary external URL** — no restriction existed at all, meaning a user could point their displayed photo at any URL: a tracking beacon fetched by every viewer's browser, or a way to pass real verification and then swap the visible photo afterward while keeping the verified badge. Closed with a database CHECK constraint.
+5. **Message rate limiting and length cap** — messages had zero protection against spam or flooding, since they insert directly from the client and were never touched by the existing rate limiter. Added a BEFORE INSERT trigger reusing the same check_rate_limit mechanism, plus a 2000-character cap.
+6. **Internal moderation fields readable by any user** — verification_attempts, needs_manual_review, age_verification_attempts, needs_age_review, age_verified_at, and the verification photo path/pose were readable by any authenticated user for anyone's active profile, since RLS is row-level only and doesn't restrict columns. First fix attempt didn't actually work (revoked only column-level grants without addressing the broader table-level grant already in place) — caught via direct testing, fixed properly by revoking the table-level grant and re-granting only the safe columns.
+7. **is_premium / contact_verified self-write** — discovered during the same column audit above. Both were directly self-writable regardless of whether anything currently trusts them. Extended the existing profiles-field-protection trigger to cover both.
+8. **Security headers** — X-Content-Type-Options, X-Frame-Options, Referrer-Policy, and a carefully-scoped Permissions-Policy (camera allowed for verify-photo's live capture, microphone and geolocation denied) are now enforced. Content-Security-Policy is live in report-only mode pending a clean browsing pass before switching to enforcing.
+9. **AI-failure-specific logging** — generate-stack (three separate silent-fallback sites), ai-breakdown, verify-photo, and verify-age all now log the specific reason an AI call failed, not just a generic error.
+10. **Account-deletion success logging** — delete-account previously only logged on failure; an irreversible action now has an explicit record when it succeeds too.
+11. **Live secret-scanning verification** — independently fetched and pattern-matched all 10-11 scripts the live site actually serves (874KB total), checking for Anthropic, OpenAI, Stripe, and Firebase key formats. Clean, confirmed against real content (not a silent empty-page false negative).
