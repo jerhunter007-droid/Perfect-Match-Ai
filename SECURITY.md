@@ -267,3 +267,15 @@ Reopened by this correction, none yet assessed:
 - Confirming RESEND_API_KEY lives only as a server-side secret, never client-exposed
 
 Blocked on seeing the actual Resend integration code — same category as the login/signup files, photo upload component, and profile-editing form named elsewhere in this document.
+
+---
+
+## Authentication Configuration Review (Supabase Auth Dashboard)
+
+- **Password strength — confirmed strong.** 10-character minimum, requires lowercase, uppercase, digits, and symbols (all four character classes). Closes the "strong password requirements" item that had been unknown since the first checklist pass.
+- **Email OTP length — 6 digits, confirmed safe.** At the existing 360/hour/IP verification rate limit, exhausting the full 1,000,000-code keyspace from one IP would take roughly 115 days. No change needed.
+- **Email OTP expiration — changed from 3600 seconds (1 hour) to 300 seconds (5 minutes).** Appropriately short for a code meant to be used immediately after receipt.
+- **Secure email change — ON.** Email changes require confirmation from both the old and new address, protecting against silent account-recovery redirection if a session is ever compromised.
+- **Secure password change — OFF, recommended change not yet made.** Currently, anyone with a valid session can change the account password at any time with no recent-login requirement. Turning this on would require the session to be under 24 hours old to change password without re-authenticating — real account-takeover protection, low cost to legitimate users.
+- **Prevent use of leaked passwords — unavailable, not a misconfiguration.** Pro plan and above only; this project is confirmed on the Free tier, same root cause as the already-noted backup and audit-log gaps.
+- **Still open, not addressed this round:** the 30/hour project-wide email-sending rate limit discussed separately — recommended raising to roughly 150-200/hour, not yet confirmed changed.
