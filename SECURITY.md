@@ -291,3 +291,9 @@ Blocked on seeing the actual Resend integration code — same category as the lo
 - **Secure password change — turned ON this session.** Now requires the session to be under 24 hours old to change the account password without re-authenticating. Closes a real account-takeover gap: previously, anyone with a valid session (including a stolen or leftover one) could change the password at any time with no additional check.
 - **Prevent use of leaked passwords — unavailable, not a misconfiguration.** Pro plan and above only; this project is confirmed on the Free tier, same root cause as the already-noted backup and audit-log gaps.
 - **Still open, not addressed this round:** the 30/hour project-wide email-sending rate limit discussed separately — recommended raising to roughly 150-200/hour, not yet confirmed changed.
+
+---
+
+## Follow-up: email rate limit resolved
+
+The project-wide email-sending rate limit (Authentication → Rate Limits → "Rate limit for sending emails") has been raised from 30/hour to 150/hour. This was the one item left open at the end of the Auth Configuration Review above — no longer open.
