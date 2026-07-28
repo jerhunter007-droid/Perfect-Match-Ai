@@ -207,3 +207,21 @@ Most of this pass either resolved into fixes (AI-failure logging across all four
 
 ### Minor, worth naming precisely rather than ignoring
 console.error(err) logs whatever the caught exception object contains. For the SDK errors seen throughout this app that's reliably just a message string, but this isn't a hard guarantee for every conceivable error shape. Low risk, not zero — noted for completeness rather than treated as an open action item.
+
+---
+
+## 12. AI Security / Authorization / Input Validation / Headers — Outstanding Items
+
+Most of this pass resolved into fixes rather than open items — the profile column-visibility gap and the `is_premium`/`contact_verified` self-write issue were found and closed in the same turn they were discovered. What's genuinely still open:
+
+### Real, known gaps — actionable without anything further
+- **AI-call failures aren't logged distinctly.** `generate-stack`'s Claude-call fallback and `ai-breakdown`'s Claude-call failure are both caught in their own inner `try/catch`, which bypasses the generic `console.error` logging added when the error-leak fix shipped. The client-facing behavior is already correct (graceful fallback / clean error); this is purely about visibility into *why* a fallback triggered, for your own debugging.
+- **No moderation layer on AI-generated output before display.** Claude's output is constrained by the system prompts (grounded, non-fabricated content required), but there's no independent check on the generated icebreakers/summaries before they reach a user.
+
+### Blocked on seeing the profile-editing form
+A third distinct blocker, alongside the login/signup files (§10) and the photo upload component (§11) — this is yet another piece of code never seen this session.
+- Whether bios, names, and interests get any input-time validation (length, content) before being saved
+- Whether "usernames" and "school names" exist as real fields at all — I have no evidence either way and don't want to guess
+
+### Pending real-world confirmation, not yet complete
+- **Content-Security-Policy is live in report-only mode**, not yet confirmed clean or switched to enforcing. Needs you to browse the live site with DevTools open, confirm zero violations, then have me flip `Content-Security-Policy-Report-Only` to `Content-Security-Policy` in `next.config.js`.
