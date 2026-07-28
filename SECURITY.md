@@ -251,3 +251,5 @@ A running list of what was found and fixed today, so this document has a real hi
 11. **Live secret-scanning verification** — independently fetched and pattern-matched all 10-11 scripts the live site actually serves (874KB total), checking for Anthropic, OpenAI, Stripe, and Firebase key formats. Clean, confirmed against real content (not a silent empty-page false negative).
 
 **Frontend console logging verification** — grepped all 26 TypeScript/TSX files in app/ and components/ for console.* calls. Zero matches, confirmed against a real file count rather than an ambiguous empty result. No stray debugging output leaking anything to the browser console.
+
+**Unused package check** — ran npx depcheck. Flagged typescript, @types/node, postcss, and autoprefixer as unused devDependencies — all four are false positives (build-tooling invoked via config files or the framework itself, never through explicit imports depcheck can detect). None removed; verified this is a known depcheck limitation before treating the result as actionable.
