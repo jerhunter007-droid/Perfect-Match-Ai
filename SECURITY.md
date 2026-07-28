@@ -253,3 +253,17 @@ A running list of what was found and fixed today, so this document has a real hi
 **Frontend console logging verification** — grepped all 26 TypeScript/TSX files in app/ and components/ for console.* calls. Zero matches, confirmed against a real file count rather than an ambiguous empty result. No stray debugging output leaking anything to the browser console.
 
 **Unused package check** — ran npx depcheck. Flagged typescript, @types/node, postcss, and autoprefixer as unused devDependencies — all four are false positives (build-tooling invoked via config files or the framework itself, never through explicit imports depcheck can detect). None removed; verified this is a known depcheck limitation before treating the result as actionable.
+
+---
+
+## Correction: Resend integration exists
+
+Earlier sections of this document (and this session's chat) stated no email-sending integration exists in this app. That was wrong — a Resend integration is in use. Verified via live bundle scan that the API key itself is not exposed on the frontend (zero matches for Resend's re_ key format across all 11 scripts the site serves); the word "resend" appears 4 times in one chunk, almost certainly UI-related (e.g. a resend-code button) rather than the key itself, but not yet confirmed against the actual source.
+
+Reopened by this correction, none yet assessed:
+- CAN-SPAM compliance for whatever emails are actually sent
+- Sending domain verification, SPF, DKIM, DMARC in Resend's dashboard
+- Rate limiting on whatever triggers a send (no evidence either way)
+- Confirming RESEND_API_KEY lives only as a server-side secret, never client-exposed
+
+Blocked on seeing the actual Resend integration code — same category as the login/signup files, photo upload component, and profile-editing form named elsewhere in this document.
