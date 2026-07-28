@@ -320,3 +320,21 @@ Still open:
 NEXT_PUBLIC_TURNSTILE_SITE_KEY added to Vercel (Production and Preview), correctly marked safe despite the NEXT_PUBLIC_ scanner warning (the site key is meant to be public — an identifier, not a secret; the actual secret lives server-side only, already saved in Supabase's Attack Protection panel), and a manual redeploy triggered so the build actually picks it up.
 
 This completes every dashboard-level Turnstile step: Cloudflare site creation, Supabase secret, Vercel site key, all done. The one remaining piece is code, not configuration: TurnstileWidget still needs to be rendered inside the actual signup/login form, with its token passed as options: { captchaToken: token } on the Supabase auth calls. Worth being precise that a successful redeploy confirms the key is *available* to any code that references it — it does not yet confirm anything is *using* it, since nothing in the app currently renders the widget. That verification only becomes possible once the login/signup wiring happens.
+
+---
+
+## Login page review: findings and fixes (app/login/page.tsx now seen)
+
+Several items blocked since the start of this document resolve cleanly now that the real code is visible:
+
+- Email verification before activation — structurally guaranteed, this app is OTP-only, no way to get an account without entering a real code
+- Account enumeration protection — signInWithOtp runs an identical path for new and existing accounts, no differential response
+- Password requirements / password reset — turn out to be N/A entirely; there is no password anywhere in this flow. The Supabase dashboard password settings reviewed earlier are configured but unused by the actual app.
+
+Two real findings, both fixed:
+- Raw Supabase SDK error messages (error.message) were passed directly to the client in both sendCode() and verifyCode() — the same unfiltered-error-leakage pattern fixed across all 7 edge functions earlier, just never checked on the frontend until now. Replaced with generic messages in both places.
+- Age/terms consent was enforced only in sendCode(), with no re-check in verifyCode() — meaning someone who reached verifyCode() by manipulating React state directly (bypassing sendCode()'s gate) could get a real terms_accepted_at timestamp without genuine consent. Added the same check to verifyCode(). Honest caveat: this closes the React-state-manipulation path, not the more determined path of calling Supabase auth methods directly outside the component entirely — fully closing that would need a server-side Auth Hook, a separate, larger addition, not yet built.
+
+Confirmed, no change needed:
+- PHONE_AUTH_ENABLED is false — phone sign-in is already hidden, email-only is already the live beta configuration, nobody has been hitting the "not fully set up" dead end.
+- PAYMENTS_ENABLED is also false, adjacent finding — the Stripe upgrade flow hardened earlier this session isn't currently reachable in the live app. Worth knowing the hardening was real, correct, proactive work, protecting a path that isn't live yet rather than one that is.
