@@ -249,3 +249,5 @@ A running list of what was found and fixed today, so this document has a real hi
 9. **AI-failure-specific logging** — generate-stack (three separate silent-fallback sites), ai-breakdown, verify-photo, and verify-age all now log the specific reason an AI call failed, not just a generic error.
 10. **Account-deletion success logging** — delete-account previously only logged on failure; an irreversible action now has an explicit record when it succeeds too.
 11. **Live secret-scanning verification** — independently fetched and pattern-matched all 10-11 scripts the live site actually serves (874KB total), checking for Anthropic, OpenAI, Stripe, and Firebase key formats. Clean, confirmed against real content (not a silent empty-page false negative).
+
+**Frontend console logging verification** — grepped all 26 TypeScript/TSX files in app/ and components/ for console.* calls. Zero matches, confirmed against a real file count rather than an ambiguous empty result. No stray debugging output leaking anything to the browser console.
