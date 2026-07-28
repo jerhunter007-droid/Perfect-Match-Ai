@@ -312,3 +312,11 @@ Done:
 Still open:
 - Confirm whether the Turnstile Site Key has been added to Vercel as NEXT_PUBLIC_TURNSTILE_SITE_KEY (the public counterpart to the secret just saved)
 - TurnstileWidget still needs to be wired into the actual signup/login component: render the widget, capture the token, pass it as options: { captchaToken: token } on the supabase.auth.signUp() / signInWithPassword() calls — blocked on the same login/signup code named elsewhere in this document
+
+---
+
+## CAPTCHA / Attack Protection: Turnstile setup complete
+
+NEXT_PUBLIC_TURNSTILE_SITE_KEY added to Vercel (Production and Preview), correctly marked safe despite the NEXT_PUBLIC_ scanner warning (the site key is meant to be public — an identifier, not a secret; the actual secret lives server-side only, already saved in Supabase's Attack Protection panel), and a manual redeploy triggered so the build actually picks it up.
+
+This completes every dashboard-level Turnstile step: Cloudflare site creation, Supabase secret, Vercel site key, all done. The one remaining piece is code, not configuration: TurnstileWidget still needs to be rendered inside the actual signup/login form, with its token passed as options: { captchaToken: token } on the Supabase auth calls. Worth being precise that a successful redeploy confirms the key is *available* to any code that references it — it does not yet confirm anything is *using* it, since nothing in the app currently renders the widget. That verification only becomes possible once the login/signup wiring happens.
