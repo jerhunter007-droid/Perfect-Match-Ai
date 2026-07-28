@@ -53,7 +53,7 @@ export default function LoginPage() {
       // instead of retrying with an already-spent token.
       turnstileRef.current?.reset();
       setCaptchaToken(undefined);
-      setError(method === "phone" ? "Phone sign-in isn't fully set up yet — try email for now." : error.message);
+      setError(method === "phone" ? "Phone sign-in isn't fully set up yet — try email for now." : "Couldn't send your code right now. Please try again in a moment.");
       return;
     }
     setCodeSent(true);
@@ -67,7 +67,7 @@ export default function LoginPage() {
       ? await supabase.auth.verifyOtp({ phone: value.trim(), token: code, type: "sms" })
       : await supabase.auth.verifyOtp({ email: value.trim(), token: code, type: "email" });
     setLoading(false);
-    if (error || !data.user) { setError(error?.message ?? "That code didn't work."); return; }
+    if (error || !data.user) { setError("That code didn't work — check it and try again."); return; }
     track("contact_verified", { method });
 
     await supabase.from("profiles").update({
