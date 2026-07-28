@@ -61,6 +61,13 @@ export default function LoginPage() {
   }
 
   async function verifyCode() {
+    // Defense in depth: sendCode() already gates on these, but this closes
+    // the path where someone reaches verifyCode() by manipulating React
+    // state directly rather than going through sendCode() normally. Does
+    // NOT close the more determined path of calling Supabase auth methods
+    // directly outside this component entirely — that would need a
+    // server-side Auth Hook to fully close, a separate, bigger addition.
+    if (!ageConfirmed || !termsAccepted) { setError("Please confirm you're 18+ and agree to the Terms and Privacy Policy."); return; }
     setLoading(true);
     setError("");
     const { data, error } = method === "phone"
