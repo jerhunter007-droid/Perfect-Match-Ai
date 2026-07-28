@@ -297,3 +297,18 @@ Blocked on seeing the actual Resend integration code — same category as the lo
 ## Follow-up: email rate limit resolved
 
 The project-wide email-sending rate limit (Authentication → Rate Limits → "Rate limit for sending emails") has been raised from 30/hour to 150/hour. This was the one item left open at the end of the Auth Configuration Review above — no longer open.
+
+---
+
+## CAPTCHA / Attack Protection progress
+
+Supabase Auth's Attack Protection has native Turnstile support built directly into the dashboard — this is a cleaner path than a fully custom integration, and confirms the TurnstileWidget.tsx component (installed with @marsidev/react-turnstile) was correctly aimed work, not a false start.
+
+Done:
+- Captcha protection enabled in Supabase Auth (Authentication → Attack Protection)
+- Provider set to Turnstile by Cloudflare
+- Captcha secret pasted and saved
+
+Still open:
+- Confirm whether the Turnstile Site Key has been added to Vercel as NEXT_PUBLIC_TURNSTILE_SITE_KEY (the public counterpart to the secret just saved)
+- TurnstileWidget still needs to be wired into the actual signup/login component: render the widget, capture the token, pass it as options: { captchaToken: token } on the supabase.auth.signUp() / signInWithPassword() calls — blocked on the same login/signup code named elsewhere in this document
