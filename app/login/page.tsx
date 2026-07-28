@@ -1,10 +1,11 @@
 "use client";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { supabase } from "@/lib/supabase";
 import { track } from "@/lib/analytics";
 import { PHONE_AUTH_ENABLED } from "@/lib/config";
+import TurnstileWidget, { type TurnstileWidgetHandle } from "@/components/TurnstileWidget";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -16,6 +17,8 @@ export default function LoginPage() {
   const [termsAccepted, setTermsAccepted] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [captchaToken, setCaptchaToken] = useState<string | undefined>();
+  const turnstileRef = useRef<TurnstileWidgetHandle>(null);
 
   useEffect(() => {
     track("signup_started");
@@ -31,13 +34,25 @@ export default function LoginPage() {
   async function sendCode() {
     if (!ageConfirmed || !termsAccepted) { setError("Please confirm you're 18+ and agree to the Terms and Privacy Policy."); return; }
     if (!value.trim()) { setError(`Enter your ${method === "phone" ? "phone number" : "email"} first.`); return; }
+    // Turnstile completes automatically for legitimate users, usually within
+    // a second or two, but isn't guaranteed to have finished the instant the
+    // button is clicked. Catching that here avoids sending a captcha-less
+    // request to Supabase and surfacing its generic rejection instead of a
+    // clear, specific message.
+    if (!captchaToken) { setError("Please complete the verification check above."); return; }
     setLoading(true);
     setError("");
     const { error } = method === "phone"
-      ? await supabase.auth.signInWithOtp({ phone: value.trim() })
-      : await supabase.auth.signInWithOtp({ email: value.trim() });
+      ? await supabase.auth.signInWithOtp({ phone: value.trim(), options: { captchaToken } })
+      : await supabase.auth.signInWithOtp({ email: value.trim(), options: { captchaToken } });
     setLoading(false);
     if (error) {
+      // Turnstile tokens are single-use — Cloudflare invalidates them after
+      // one verification attempt regardless of whether the underlying
+      // request succeeded. Reset here so the next attempt gets a fresh one
+      // instead of retrying with an already-spent token.
+      turnstileRef.current?.reset();
+      setCaptchaToken(undefined);
       setError(method === "phone" ? "Phone sign-in isn't fully set up yet — try email for now." : error.message);
       return;
     }
@@ -106,6 +121,12 @@ export default function LoginPage() {
             <input type="checkbox" checked={termsAccepted} onChange={(e) => setTermsAccepted(e.target.checked)} className="mt-0.5 w-4 h-4 shrink-0" />
             <span>I agree to the <Link href="/terms" className="text-cyan underline">Terms of Service</Link> and <Link href="/privacy" className="text-cyan underline">Privacy Policy</Link>.</span>
           </label>
+        </div>
+      )}
+
+      {!codeSent && (
+        <div className="mb-4">
+          <TurnstileWidget ref={turnstileRef} onVerify={setCaptchaToken} />
         </div>
       )}
 
