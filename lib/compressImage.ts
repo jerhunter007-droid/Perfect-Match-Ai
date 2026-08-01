@@ -4,8 +4,17 @@
 // visible quality loss at the sizes this app actually displays photos.
 //
 // Always falls back to the original file if anything goes wrong (unsupported
-// format, decode failure, or the "compressed" result somehow ends up bigger)
-// so a compression hiccup never blocks someone from completing their profile.
+// format or decode failure) so a compression hiccup never blocks someone
+// from completing their profile.
+//
+// Deliberately does NOT fall back to the original just because the
+// recompressed version came out the same size or larger. Canvas re-encoding
+// strips EXIF (including GPS) as a structural side effect of how
+// createImageBitmap/canvas work — there is no metadata channel for it to
+// survive through. Falling back on a size comparison alone would silently
+// let an EXIF-intact original through whenever compression did not happen
+// to shrink the file, which is a real, non-rare case for already-small or
+// already-compressed images — not just a rare edge case worth ignoring.
 export async function compressImage(
   file: File,
   opts?: { maxDimension?: number; quality?: number }
@@ -38,7 +47,7 @@ export async function compressImage(
   bitmap.close();
 
   const blob: Blob | null = await new Promise((resolve) => canvas.toBlob(resolve, "image/jpeg", quality));
-  if (!blob || blob.size >= file.size) return file;
+  if (!blob) return file;
 
   const newName = file.name.replace(/\.[^./\\]+$/, "") + ".jpg";
   return new File([blob], newName, { type: "image/jpeg" });
