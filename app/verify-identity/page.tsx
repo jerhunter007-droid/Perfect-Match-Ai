@@ -44,7 +44,7 @@ export default function VerifyIdentityPage() {
     const compressed = await compressImage(file, { maxDimension: 1600, quality: 0.88 });
     const path = `${userId}/${crypto.randomUUID()}.jpg`;
     const { error: uploadErr } = await supabase.storage.from("verification-photos").upload(path, compressed);
-    if (uploadErr) { setError(uploadErr.message); setStatus("not_started"); return; }
+    if (uploadErr) { setError("Couldn't upload that photo — please try again."); setStatus("not_started"); return; }
 
     const { data, error: fnErr } = await supabase.functions.invoke("verify-photo", { body: { path, pose } });
     if (fnErr) { setError("Verification service is unavailable right now — try again."); setStatus("not_started"); return; }

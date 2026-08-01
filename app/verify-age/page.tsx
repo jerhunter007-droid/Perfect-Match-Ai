@@ -35,7 +35,7 @@ export default function VerifyAgePage() {
     const compressed = await compressImage(file, { maxDimension: 2000, quality: 0.9 });
     const path = `${userId}/${crypto.randomUUID()}.jpg`;
     const { error: uploadErr } = await supabase.storage.from("age-verification-documents").upload(path, compressed);
-    if (uploadErr) { setError(uploadErr.message); setStatus("not_started"); return; }
+    if (uploadErr) { setError("Couldn't upload that photo — please try again."); setStatus("not_started"); return; }
 
     const { data, error: fnErr } = await supabase.functions.invoke("verify-age", { body: { path } });
     if (fnErr) { setError("Verification service is unavailable right now — try again."); setStatus("not_started"); return; }

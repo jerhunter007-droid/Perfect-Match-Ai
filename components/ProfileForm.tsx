@@ -53,10 +53,10 @@ export default function ProfileForm({
     setUploading(true);
     setError("");
     const compressed = await compressImage(file);
-    const path = `${userId}/${crypto.randomUUID()}-${compressed.name}`;
+    const path = `${userId}/${crypto.randomUUID()}.jpg`;
     const { error: uploadErr } = await supabase.storage.from("profile-photos").upload(path, compressed);
     setUploading(false);
-    if (uploadErr) { setError(uploadErr.message); return; }
+    if (uploadErr) { setError("Couldn't upload that photo — please try again."); return; }
     const { data } = supabase.storage.from("profile-photos").getPublicUrl(path);
     setPhotos((prev) => [...prev, data.publicUrl]);
   }
@@ -75,7 +75,7 @@ export default function ProfileForm({
     try {
       await onSubmit({ name: name.trim(), age, city: city.trim(), gender, bio, interests, basics, photos });
     } catch (e: any) {
-      setError(e?.message || "Something went wrong — try again.");
+      setError("Couldn't save your profile — please try again.");
     } finally {
       setSaving(false);
     }
