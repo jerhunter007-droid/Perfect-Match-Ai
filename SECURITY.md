@@ -338,3 +338,17 @@ Two real findings, both fixed:
 Confirmed, no change needed:
 - PHONE_AUTH_ENABLED is false — phone sign-in is already hidden, email-only is already the live beta configuration, nobody has been hitting the "not fully set up" dead end.
 - PAYMENTS_ENABLED is also false, adjacent finding — the Stripe upgrade flow hardened earlier this session isn't currently reachable in the live app. Worth knowing the hardening was real, correct, proactive work, protecting a path that isn't live yet rather than one that is.
+
+---
+
+## ProfileForm.tsx / compressImage.ts review: EXIF and upload enforcement closed
+
+The single highest-priority item flagged this session is now resolved with an actual answer, not an assumption.
+
+**EXIF/GPS stripping — real gap found and fixed.** compressImage.ts's canvas-based re-encoding pipeline structurally strips EXIF as a side effect of how createImageBitmap/canvas work — there's no metadata channel for it to survive through, which is architecturally stronger than a tag-denylist approach. But the function fell back to the original, EXIF-intact file whenever the recompressed version wasn't smaller than the source — a real, non-rare case for already-small or already-compressed images, not just a rare edge case. Fixed: any successfully-produced blob is now used regardless of size comparison. A separate, smaller residual gap was identified and deliberately not touched: decode-failure and no-canvas-context fallbacks also return the unprocessed original, but that's an explicit, stated design tradeoff from the original code ("a compression hiccup never blocks someone from completing their profile"), not an oversight — left as the project owner's call, not overridden unilaterally.
+
+**Storage bucket enforcement — real gap found and fixed.** The profile-photos bucket had file_size_limit and allowed_mime_types both set to null, meaning Supabase enforced nothing server-side. The 8MB check and accept="image/*" in ProfileForm.tsx are client-side JavaScript only, meaningless to anyone bypassing the UI with a direct API call using a valid session. Fixed: bucket now enforces a 10MB limit and restricts to image/jpeg, image/png, image/webp, image/heic, image/heif at the storage layer itself.
+
+**Filename in upload path — worth noting, not yet fixed.** Upload paths are `${userId}/${crypto.randomUUID()}-${compressed.name}` — the UUID prefix provides real randomness, but the original (or compressed) filename is still appended, meaning a user-controlled string reaches the storage path. Given the bucket-level MIME restriction now narrows what can even be uploaded, and the UUID anchors the path, this is lower urgency than the two fixes above, but the cleanest version of this would drop the filename entirely and use just the UUID plus a fixed extension.
+
+**Client-side error messages** in addPhoto() and submit() still pass raw error.message to the user — same pattern fixed on the login page, not yet applied here.
