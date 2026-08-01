@@ -482,3 +482,13 @@ account deletion process: confirmed already fully built (delete-account, cascade
 Backup retention / recovery procedures: same blocker as backups already on the list -- Free-tier gated, deferred until plan upgrade.
 
 **Legal — not started, correctly so.** Privacy Policy, Terms of Service, Community Guidelines, age disclosure text, and GDPR/CCPA technical-alignment review are all things Claude can draft/assist with, but none were started this pass -- flagged as needing Jeremy's involvement (legal review, business decisions like the actual support contact channel) before drafting begins.
+
+---
+
+## Legal content wired into real page components
+
+Converted the four legal drafts into actual Next.js page.tsx files (App Router conventions: app/privacy/page.tsx, app/terms/page.tsx, app/community-guidelines/page.tsx), styled to roughly match the app's dark theme observed in the one screenshot seen this session -- reduces Jeremy's remaining work to copy-in-and-push rather than build-from-markdown. Also created a reusable AgeDisclosure component (two variants) and an illustrative (not integration-ready) example of what the consent checkbox needs to look like.
+
+Confirmed terms_accepted_at is functioning correctly -- real timestamp recorded from Jeremy's own test signup -- but until this pass, nothing real existed for that consent to actually point to.
+
+Genuinely could not go further without: (1) the actual login/signup file, to safely wire the real consent checkbox without risking breaking existing logic, (2) a real support email to replace SUPPORT_EMAIL_PLACEHOLDER in both privacy/page.tsx and terms/page.tsx (currently placeholder), (3) LLC formation status, entirely Jeremy's to handle.
