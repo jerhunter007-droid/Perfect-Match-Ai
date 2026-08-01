@@ -389,3 +389,25 @@ While testing decide_card, an attempt to set a test profile's onboarding_status 
 
 - **Raw error-message leaks, three files** — ProfileForm.tsx (photo upload + profile save), verify-identity/page.tsx, verify-age/page.tsx all previously passed Supabase's raw SDK error message straight to the user. All three now show a generic "Couldn't upload that photo — please try again." on storage upload failures, consistent with the same fix already applied to the login page. ProfileForm.tsx's submit() also fixed separately, since that error path comes from a parent component's onSubmit callback, not a Supabase call directly.
 - **ProfileForm.tsx upload path filename inclusion** — now uses ${userId}/${crypto.randomUUID()}.jpg, matching the clean pattern already used in verify-identity and verify-age. No more user-controlled filename reaching the storage path in any of the three upload flows.
+
+---
+
+## Lists check, systems scan, and deep scan — full record
+
+### Systems scan (Supabase's own advisors, used for the first time this session)
+Ran both security and performance advisors directly against the live database.
+
+Security advisor confirmed two already-known items independently (leaked password protection disabled — same Pro-plan gating found earlier via the dashboard; banned_ips/rate_limits RLS-enabled-with-no-policy — the intentional default-deny design, working as designed). One genuinely new finding: three functions (enforce_message_limits, protect_verification_fields, is_match_member) were directly callable by anon (unauthenticated) users via RPC. Fixed: enforce_message_limits and protect_verification_fields are pure trigger functions with no legitimate direct-call use, revoked from both anon and authenticated entirely — trigger invocation doesn't depend on this grant, verified both triggers still fire correctly afterward. is_match_member still needs authenticated access (used inside RLS policy evaluation) but never needed anon, since messages/match_members RLS is authenticated-only — revoked from anon only.
+
+Performance advisor results are all expected given minimal real data volume right now (unused indexes on largely-empty tables, standard auth.uid() RLS-wrapping suggestions for performance at scale) — none security-relevant, not actionable today.
+
+### Deep scan: ten previously-unaudited RPC functions
+Surfaced by the security advisor's function list, none of which had been directly reviewed all session: block_and_report, cancel_duo_invite, decide_duo_card, mark_match_read, my_duo_partners, undo_last_decline, unlink_duo_partner, unmatch, unread_message_count, who_liked_me.
+
+Six confirmed properly secured on direct read: block_and_report, cancel_duo_invite, my_duo_partners, undo_last_decline (including correctly reading the premium gate from subscriptions, not a client-supplied flag), unlink_duo_partner, unmatch, unread_message_count — all correctly scope every operation to auth.uid().
+
+Two had the same missing-verification-gate pattern found twice already today:
+- decide_duo_card — the duo match-creation path never checked the caller's onboarding_status, same as decide_card before its fix. Same defense-in-depth reasoning applies (not currently exploitable given stack_cards has no INSERT policy for authenticated, but hardened for robustness against future changes). Fixed and tested — confirmed rejected when not active.
+- who_liked_me — more serious, since this is a pure read with no upstream INSERT lockdown protecting it. Correctly filtered the LIKER's onboarding_status but never checked the CALLER's own status, meaning an unverified account could call this directly and see real names and profile photo URLs of anyone who'd liked them. Fixed by adding the same caller-status check. Confirmed rejected (returns empty) when not active. The positive case (active caller, genuine liker) could not be fully end-to-end tested with synthetic data — profiles.id has a foreign key to auth.users, so a genuinely synthetic second profile isn't constructable in this environment. Confidence remains high since the fix only adds a new condition on top of pre-existing, untouched, already-correct matching logic, but worth stating this honestly rather than claiming equal certainty to the fully-tested fixes.
+
+One minor fix: mark_match_read previously accepted any match_id with no check that the caller actually belongs to it. Low practical impact (nothing downstream trusts a match_reads row without its own separate membership check), but fixed and fully tested — confirmed no-op when not a member, confirmed working normally when a genuine member.
