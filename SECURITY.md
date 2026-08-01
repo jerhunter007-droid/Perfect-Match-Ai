@@ -438,3 +438,19 @@ Per your stated preference (a dashboard you check, not email/Slack alerts), buil
 Single view, `public.app_health_snapshot`: signup funnel by onboarding_status, new signups (24h/7d), the moderation queue (needs_manual_review / needs_age_review counts — the same queue flagged as having no visibility earlier), banned IP activity, and rate-limit activity including signup-hook-specific windows. Plain view (not materialized) since current traffic makes live computation free and this avoids any staleness. Not exposed via the Data API — direct SQL Editor query only.
 
 Verified working with real data — confirmed signup_rate_limit_windows_24h: 1, organic evidence the before-user-created hook's rate-limit check has fired for real, independent of the earlier isolated function tests.
+
+---
+
+## Fresh advisor pass + a real, previously-missed permission gap
+
+Ran the security advisor fresh given how much new surface was added this session (auth hook, new tables, webhook trigger, health view). Most findings were either stale cache (confirmed via direct information_schema checks, same pattern as earlier) or expected/intentional (the full RPC surface being callable by authenticated — correct, that's the point of those functions).
+
+Two genuinely new, real findings, both fixed:
+- hook_before_user_created was missing an explicit search_path, unlike every other function this session — closed with `alter function ... set search_path = public`.
+- notify_upload_content_check (the storage webhook trigger function) was directly callable via RPC by anyone, unauthenticated included — revoked from anon and authenticated.
+
+While verifying the second fix, found something more significant: **all the "anon/authenticated revoked" fixes from earlier this session were incomplete.** Revoking execute from anon/authenticated by name does nothing to a lingering PUBLIC grant — every Postgres role, including anon and authenticated, inherits from PUBLIC unless it's revoked separately. This meant enforce_message_limits, protect_verification_fields, and notify_upload_content_check were all still reachable by anyone via the PUBLIC grant despite earlier fixes — and is_match_member, which was specifically meant to be authenticated-only, was still reachable by anon this whole time via the same gap.
+
+Fixed properly: revoked PUBLIC from all four, re-granted authenticated specifically to is_match_member (since PUBLIC was what it had been inheriting from). Verified the actual resulting grant table directly rather than trusting either the advisor or the revoke statement's apparent success — confirmed each function now shows exactly the intended grantees, nothing more. Full regression test afterward: message trigger, profile-field-protection trigger, and messages RLS (which depends on is_match_member) all confirmed still working correctly.
+
+One item deliberately not touched: pg_net shows as installed in the public schema rather than a dedicated one (a minor best-practice note, not a real vulnerability). Moving it carries real risk of breaking the storage webhook trigger just built and tested, for low security value — not worth the risk right now.
