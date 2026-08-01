@@ -411,3 +411,20 @@ Two had the same missing-verification-gate pattern found twice already today:
 - who_liked_me — more serious, since this is a pure read with no upstream INSERT lockdown protecting it. Correctly filtered the LIKER's onboarding_status but never checked the CALLER's own status, meaning an unverified account could call this directly and see real names and profile photo URLs of anyone who'd liked them. Fixed by adding the same caller-status check. Confirmed rejected (returns empty) when not active. The positive case (active caller, genuine liker) could not be fully end-to-end tested with synthetic data — profiles.id has a foreign key to auth.users, so a genuinely synthetic second profile isn't constructable in this environment. Confidence remains high since the fix only adds a new condition on top of pre-existing, untouched, already-correct matching logic, but worth stating this honestly rather than claiming equal certainty to the fully-tested fixes.
 
 One minor fix: mark_match_read previously accepted any match_id with no check that the caller actually belongs to it. Low practical impact (nothing downstream trusts a match_reads row without its own separate membership check), but fixed and fully tested — confirmed no-op when not a member, confirmed working normally when a genuine member.
+
+---
+
+## Signup-time abuse protection (before-user-created Auth Hook)
+
+Following the scoping conversation, built the recommended tier: disposable-email blocking + IP-based signup rate limiting, both real server-side gates via Supabase Auth's `before-user-created` hook (runs before the row lands in auth.users — not a client-side check a raw API call could bypass).
+
+Researched via Supabase's own docs before building anything, since the mechanism was a genuine unknown (raw Postgres trigger vs. Auth Hook) — confirmed `before-user-created` is the right tool, available on Free plan, and that hook functions should deliberately NOT use `security definer`, instead getting explicit grants to `supabase_auth_admin` specifically.
+
+Built:
+- `signup_blocked_email_domains` — 199 curated disposable-email domains (core subset of the CC0-licensed, PyPI-used public list — not the full ~5,000-entry list, since the long tail is mostly auto-generated single-use subdomains with diminishing value at this scale)
+- `hook_before_user_created(event jsonb)` — checks disposable domain, then IP ban (`is_ip_banned`, now covering signup for the first time), then IP signup rate limit (`check_rate_limit`, 5/hour, reusing the same infrastructure and reasoning as generate-stack/ai-breakdown's IP limits rather than building a parallel system)
+- Permissions per Supabase's documented pattern exactly: grant execute to supabase_auth_admin only, revoke from authenticated/anon/public, grant usage on schema public to supabase_auth_admin, plus explicit execute grants on is_ip_banned and check_rate_limit for the same role (both already security definer, so this only grants permission to call them)
+
+Tested directly: disposable email rejected (400), legitimate signup allowed ({}), banned IP rejected (403), rate-limited IP rejected (429) — all via direct invocation with a payload matching Supabase's documented event shape. Grants for supabase_auth_admin confirmed via information_schema directly, since my own connection isn't a member of that role and can't literally execute as it to test end-to-end.
+
+Remaining manual step, cannot be done via any available tool: enable the hook in Authentication > Hooks in the Supabase dashboard, select Postgres Function, choose hook_before_user_created. The function is fully built and tested but inactive until that toggle is flipped.
