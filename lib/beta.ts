@@ -8,7 +8,7 @@
 // BETA_END_DATE themselves, and gated on the days outside that range.
 // Comparisons use each visitor's local calendar date (not UTC), so the
 // cutover happens at midnight in their own timezone.
-export const BETA_START_DATE = "2026-08-01"; // launch day
+export const BETA_START_DATE = "2026-08-15"; // launch day
 export const BETA_END_DATE = "2026-10-15"; // last day the beta is open
 
 function todayLocal(): string {
