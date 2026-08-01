@@ -428,3 +428,13 @@ Built:
 Tested directly: disposable email rejected (400), legitimate signup allowed ({}), banned IP rejected (403), rate-limited IP rejected (429) — all via direct invocation with a payload matching Supabase's documented event shape. Grants for supabase_auth_admin confirmed via information_schema directly, since my own connection isn't a member of that role and can't literally execute as it to test end-to-end.
 
 Remaining manual step, cannot be done via any available tool: enable the hook in Authentication > Hooks in the Supabase dashboard, select Postgres Function, choose hook_before_user_created. The function is fully built and tested but inactive until that toggle is flipped.
+
+---
+
+## Monitoring — app_health_snapshot view
+
+Per your stated preference (a dashboard you check, not email/Slack alerts), built the lightweight version rather than any alerting infrastructure. Pointed out first that Supabase's own Logs section already covers infrastructure-level monitoring (Auth events, Edge Function errors, API logs) for free with no setup — this only fills the app-specific gap that generic logs can't show.
+
+Single view, `public.app_health_snapshot`: signup funnel by onboarding_status, new signups (24h/7d), the moderation queue (needs_manual_review / needs_age_review counts — the same queue flagged as having no visibility earlier), banned IP activity, and rate-limit activity including signup-hook-specific windows. Plain view (not materialized) since current traffic makes live computation free and this avoids any staleness. Not exposed via the Data API — direct SQL Editor query only.
+
+Verified working with real data — confirmed signup_rate_limit_windows_24h: 1, organic evidence the before-user-created hook's rate-limit check has fired for real, independent of the earlier isolated function tests.
