@@ -352,3 +352,17 @@ The single highest-priority item flagged this session is now resolved with an ac
 **Filename in upload path — worth noting, not yet fixed.** Upload paths are `${userId}/${crypto.randomUUID()}-${compressed.name}` — the UUID prefix provides real randomness, but the original (or compressed) filename is still appended, meaning a user-controlled string reaches the storage path. Given the bucket-level MIME restriction now narrows what can even be uploaded, and the UUID anchors the path, this is lower urgency than the two fixes above, but the cleanest version of this would drop the filename entirely and use just the UUID plus a fixed extension.
 
 **Client-side error messages** in addPhoto() and submit() still pass raw error.message to the user — same pattern fixed on the login page, not yet applied here.
+
+---
+
+## verify-identity/page.tsx review: identity-verification bypass found and fixed
+
+The frontend page itself is solid — correctly redirects unauthenticated visitors, uses a clean UUID-only upload path (${userId}/${crypto.randomUUID()}.jpg, no filename included — better than ProfileForm's current pattern, worth aligning that one to match), and the verify-photo function-invocation error is already generic.
+
+But reviewing this page surfaced the most serious finding of this pass: verify-age's edge function never checked that identity verification had actually happened first. The comment at the top of that file described the intended order (identity, then age), but nothing in the actual code enforced it. Frontend page order is not a real gate — verify-age could be called directly by anyone with a valid session, letting someone pass age verification with their own real ID while their displayed profile photos were never confirmed to be genuinely theirs. That's a complete bypass of the core purpose of identity verification: someone could run a profile on stolen or AI-generated photos, separately prove their own real age, and still reach full active status.
+
+Fixed: verify-age now checks identity_verified on the caller's own profile before proceeding, rejecting with a clear error otherwise. Covers both the normal and degraded (missing API key) success paths, since both previously set onboarding_status to active unconditionally. Deployed as v8.
+
+Testing note, stated honestly: unlike every RLS-based fix this session, there is no tool available here to invoke a live Deno edge function with a synthetic authenticated request the way database policies were adversarially tested throughout. This fix is deployed and carefully traced through the code, and identity_verified is an independently-confirmed real column set correctly by verify-photo, but it has not received the same live, adversarial end-to-end confirmation as the database-level fixes in this document. Worth an explicit manual test of the real flow.
+
+Smaller items from this same file, not yet fixed: addPhoto's upload error in this flow still passes uploadErr.message raw to the client — same pattern already fixed on the login page and flagged (not yet fixed) in ProfileForm.tsx.
