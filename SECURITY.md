@@ -462,3 +462,23 @@ One item deliberately not touched: pg_net shows as installed in the public schem
 **Hide/pause profile — removed from scope entirely, not deferred.** Confirmed via schema that this never existed as a feature. Jeremy's call: it has no real meaning for this app and won't be built. Closing this out for good — a future session shouldn't re-flag it as an open gap.
 
 **Backups / audit logging — deliberately deferred, not forgotten.** Free-tier gated (Pro+ only). Jeremy is explicitly not upgrading for this now. Revisit after beta launches, or once the user base grows enough to justify the upgrade, or whenever he brings up moving off the Free plan for any reason.
+
+---
+
+## Data Protection / Moderation / Legal — added to scope, work started
+
+Three new checklist categories added at Jeremy's request. Full breakdown of done/startable/needs-Jeremy for each sub-item recorded in conversation. Summary of what actually got built this pass:
+
+**Moderation — report targeting gap, found and closed.** reports previously only supported reporting a whole user with free-text reason — no way to target a specific photo or message, no structured categories. Added photo_id/message_id columns (both FK-constrained, nullable) and a reason CHECK constraint (harassment, impersonation, inappropriate_photo, inappropriate_message, spam, fake_profile, underage_suspected, other). New RPC submit_report — deliberately separate from block_and_report, which is left completely unchanged since its frontend integration is unknown and its current always-blocks behavior might be intentional there. submit_report validates: no self-reports, valid category only, a given photo_id must actually belong to the reported user, a given message_id must actually be from the reported user AND the caller must be a genuine match member (can only report messages actually received), rate-limited at 20/hour. All five rejection paths tested and confirmed. Happy-path insert not fully testable — reported_id has a real FK to profiles and only one real profile exists to test with — high confidence given every validation branch and the insert itself are independently verified, but flagged rather than claimed as fully proven.
+
+mute user: confirmed doesn't exist anywhere in the schema. Not built — worth Jeremy's explicit input before building, same as hide/pause was.
+
+admin review queue: same admin dashboard Jeremy already ranked last. Not new scope, just resurfacing.
+
+**Data Protection — data-minimization audit performed.** Reviewed the full profiles schema. Found verification_photo_url and verification_pose are genuinely dead columns -- zero rows anywhere have data in them, and verify-photo's actual code never writes to them (reads verification photos via signed URL directly from storage, never persists a URL on the profile row). Dropped both. contact_method is actively used (1 real row) but its exact intended purpose wasn't fully clear from available context -- worth Jeremy confirming what it's for. visual_style_descriptor is a real, deliberately-built feature (the visual-affinity nudge) -- not flagged for removal, but worth explicit disclosure in the eventual privacy policy given it's AI-inferred data about physical appearance.
+
+account deletion process: confirmed already fully built (delete-account, cascades correctly, tested, logged) -- not a gap despite being listed as a to-do item.
+
+Backup retention / recovery procedures: same blocker as backups already on the list -- Free-tier gated, deferred until plan upgrade.
+
+**Legal — not started, correctly so.** Privacy Policy, Terms of Service, Community Guidelines, age disclosure text, and GDPR/CCPA technical-alignment review are all things Claude can draft/assist with, but none were started this pass -- flagged as needing Jeremy's involvement (legal review, business decisions like the actual support contact channel) before drafting begins.
