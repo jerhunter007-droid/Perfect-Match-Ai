@@ -454,3 +454,11 @@ While verifying the second fix, found something more significant: **all the "ano
 Fixed properly: revoked PUBLIC from all four, re-granted authenticated specifically to is_match_member (since PUBLIC was what it had been inheriting from). Verified the actual resulting grant table directly rather than trusting either the advisor or the revoke statement's apparent success — confirmed each function now shows exactly the intended grantees, nothing more. Full regression test afterward: message trigger, profile-field-protection trigger, and messages RLS (which depends on is_match_member) all confirmed still working correctly.
 
 One item deliberately not touched: pg_net shows as installed in the public schema rather than a dedicated one (a minor best-practice note, not a real vulnerability). Moving it carries real risk of breaking the storage webhook trigger just built and tested, for low security value — not worth the risk right now.
+
+---
+
+## Decisions closed out — hide/pause profile, backups/audit logs
+
+**Hide/pause profile — removed from scope entirely, not deferred.** Confirmed via schema that this never existed as a feature. Jeremy's call: it has no real meaning for this app and won't be built. Closing this out for good — a future session shouldn't re-flag it as an open gap.
+
+**Backups / audit logging — deliberately deferred, not forgotten.** Free-tier gated (Pro+ only). Jeremy is explicitly not upgrading for this now. Revisit after beta launches, or once the user base grows enough to justify the upgrade, or whenever he brings up moving off the Free plan for any reason.
